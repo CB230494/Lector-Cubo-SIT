@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#06245e" />
+  <title>Analizador de Incidencia Policial</title>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="preconnect" href="https://unpkg.com" crossorigin>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <img src="assets/msp-logo.png" alt="Ministerio de Seguridad Pública" class="brand-logo" />
+      <div class="brand-copy">
+        <strong>Analizador de Incidencia Policial</strong>
+        <span>Exploración territorial · temporal · operativa</span>
+      </div>
+    </div>
+    <div class="file-status" id="fileStatus">
+      <span class="status-dot"></span>
+      <span>Sin archivo cargado</span>
+    </div>
+  </header>
+
+  <nav class="tabs" aria-label="Secciones principales">
+    <button class="tab active" data-tab="dashboard">Panel</button>
+    <button class="tab" data-tab="mapa">Mapa</button>
+    <button class="tab" data-tab="incidentes">Incidentes</button>
+    <button class="tab" data-tab="informes">Informes PDF</button>
+  </nav>
+
+  <main>
+    <section class="upload-panel" id="uploadPanel">
+      <div>
+        <h1>Cargue el archivo de incidentes</h1>
+        <p>La herramienta reconoce las columnas por su encabezado, por lo que el archivo puede conservar el nombre original o utilizar otro nombre.</p>
+      </div>
+      <label class="upload-button">
+        <input id="fileInput" type="file" accept=".xlsx,.xls" hidden />
+        <span>Seleccionar Excel</span>
+      </label>
+    </section>
+
+    <section class="filters card" id="filtersPanel">
+      <div class="section-heading compact-heading">
+        <div>
+          <span class="eyebrow">Filtros</span>
+          <h2>Segmentación de la información</h2>
+        </div>
+        <div class="filter-actions">
+          <button class="btn ghost" id="resetFilters">Limpiar</button>
+          <button class="btn primary" id="applyFilters">Aplicar filtros</button>
+        </div>
+      </div>
+
+      <div class="filter-grid">
+        <label>Unidad
+          <select id="fUnidad"><option value="">Todas</option></select>
+        </label>
+        <label>Delegación (UnidadFormal)
+          <select id="fUnidadFormal"><option value="">Todas</option></select>
+        </label>
+        <label>Fecha ingreso desde
+          <input id="fFechaDesde" type="date" />
+        </label>
+        <label>Fecha ingreso hasta
+          <input id="fFechaHasta" type="date" />
+        </label>
+        <label>Provincia
+          <select id="fProvincia"><option value="">Todas</option></select>
+        </label>
+        <label>Cantón
+          <select id="fCanton"><option value="">Todos</option></select>
+        </label>
+        <label>Distrito
+          <select id="fDistrito"><option value="">Todos</option></select>
+        </label>
+        <label>Barrio
+          <input id="fBarrio" list="barriosList" type="text" placeholder="Todos / escriba para buscar" autocomplete="off" />
+          <datalist id="barriosList"></datalist>
+        </label>
+        <label>Tipo de incidente
+          <select id="fTipo"><option value="">Todos</option></select>
+        </label>
+        <label>Origen
+          <select id="fOrigen"><option value="">Todos</option></select>
+        </label>
+        <label>Subtipo de incidente
+          <select id="fSubtipo"><option value="">Todos</option></select>
+        </label>
+      </div>
+    </section>
+
+    <section class="tab-page active" id="tab-dashboard">
+      <div class="kpi-grid">
+        <article class="kpi card"><span>Total filtrado</span><strong id="kpiTotal">—</strong><small>Incidentes</small></article>
+        <article class="kpi card"><span>Georreferenciados</span><strong id="kpiGeo">—</strong><small id="kpiGeoPct">Puntos disponibles</small></article>
+        <article class="kpi card accent-danger"><span>No ubicado / Otros</span><strong id="kpiNoUb">—</strong><small id="kpiNoUbPct">—</small></article>
+        <article class="kpi card accent-gold"><span>Hora de mayor incidencia</span><strong id="kpiPeak">—</strong><small>Según hora del incidente / registro</small></article>
+        <article class="kpi card"><span>Delegaciones</span><strong id="kpiDelegaciones">—</strong><small>UnidadFormal</small></article>
+      </div>
+
+
+      <div class="dashboard-grid">
+        <article class="card chart-card clock-card">
+          <div class="section-heading">
+            <div><span class="eyebrow">Data reloj</span><h2>Distribución de incidentes por hora</h2></div>
+            <div class="peak-badge" id="peakBadge">Sin datos</div>
+          </div>
+          <div id="clockChart" class="chart"></div>
+        </article>
+
+        <article class="card chart-card">
+          <div class="section-heading">
+            <div><span class="eyebrow">Clasificación</span><h2>Principales subtipos de incidente</h2></div>
+          </div>
+          <div id="typeChart" class="chart"></div>
+        </article>
+      </div>
+
+      <article class="card insight-card">
+        <div class="section-heading"><div><span class="eyebrow">Lectura rápida</span><h2>Resumen automático</h2></div></div>
+        <div id="insightText" class="insight-text">Cargue un archivo para iniciar el análisis.</div>
+      </article>
+    </section>
+
+    <section class="tab-page" id="tab-mapa">
+      <article class="card map-card">
+        <div class="section-heading map-heading">
+          <div>
+            <span class="eyebrow">Georreferenciación</span>
+            <h2>Mapa puntual de incidentes</h2>
+            <p>Acérquese a un sector para visualizar los puntos con mayor detalle. Presione un punto para consultar la diligencia policial.</p>
+          </div>
+          <div class="map-counter" id="mapCounter">Sin datos</div>
+        </div>
+        <div class="map-toolbar" aria-label="Modos de visualización del mapa">
+          <div class="map-mode-group">
+            <button class="map-mode active" data-map-mode="cluster">Agrupados</button>
+            <button class="map-mode" data-map-mode="points">Puntos</button>
+            <button class="map-mode" data-map-mode="heat">Mapa de calor</button>
+          </div>
+          <button class="map-mode secondary" id="centerCR">Centrar Costa Rica</button>
+        </div>
+        <div class="map-shell"><div id="map"></div><div class="map-legend" id="mapLegend"><span><i class="dot incident"></i> Incidente</span><span><i class="dot noub"></i> No ubicado / Otros</span></div></div>
+        <div class="map-note" id="mapNote">Capas disponibles: Calles, Satélite y Oscuro. Modos: agrupados, puntos y calor.</div>
+      </article>
+    </section>
+
+    <section class="tab-page" id="tab-incidentes">
+      <article class="card table-card">
+        <div class="section-heading">
+          <div><span class="eyebrow">Detalle</span><h2>Incidentes del filtro actual</h2><p>Se muestran hasta 300 registros como vista de consulta. Presione una fila para abrir el detalle completo.</p></div>
+          <span class="table-count" id="tableCount">0 registros</span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>ID</th><th>Fecha</th><th>Hora</th><th>Tipo</th><th>Subtipo</th><th>Provincia</th><th>Cantón</th><th>Distrito</th><th>Barrio</th><th>Delegación</th></tr></thead>
+            <tbody id="incidentTableBody"><tr><td colspan="10" class="empty-cell">Sin información cargada.</td></tr></tbody>
+          </table>
+        </div>
+      </article>
+    </section>
+
+    <section class="tab-page" id="tab-informes">
+      <div class="report-grid">
+        <article class="card report-config">
+          <div class="section-heading"><div><span class="eyebrow">Salida institucional</span><h2>Informe PDF</h2></div></div>
+          <p>El PDF utiliza como base visual el encabezado y el pie de página del machote institucional suministrado.</p>
+          <label>Título del informe
+            <input type="text" id="reportTitle" value="Informe de Incidencia Policial" />
+          </label>
+          <label>Observación / alcance
+            <textarea id="reportNote" rows="5" placeholder="Ej.: Análisis correspondiente a la delegación seleccionada y al periodo filtrado."></textarea>
+          </label>
+          <button class="btn primary wide" id="generatePdf">Generar informe PDF</button>
+          <small class="privacy-note">El informe de esta primera versión es estadístico y no incorpora el texto de las diligencias policiales.</small>
+        </article>
+
+        <article class="card report-preview">
+          <div class="mini-page">
+            <img src="assets/msp-logo.png" alt="" />
+            <div class="mini-date">DÍA de MES 2026</div>
+            <div class="mini-content">
+              <strong>Informe de Incidencia Policial</strong>
+              <span>Resumen · filtros · data reloj · subtipos de incidente · no ubicados</span>
+            </div>
+            <div class="mini-footer">Subdirección General de la Fuerza Pública</div>
+            <div class="mini-bar"></div>
+          </div>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <div class="loading-overlay" id="loadingOverlay" hidden>
+    <div class="loading-card">
+      <div class="spinner"></div>
+      <strong id="loadingTitle">Procesando archivo…</strong>
+      <span id="loadingText">Esto puede tardar unos segundos según el tamaño del Excel.</span>
+    </div>
+  </div>
+
+  <dialog id="detailModal" class="detail-modal">
+    <div class="modal-head">
+      <div><span class="eyebrow">Detalle de incidente</span><h2 id="modalTitle">Incidente</h2></div>
+      <button class="icon-btn" id="closeModal" aria-label="Cerrar">×</button>
+    </div>
+    <div id="modalBody" class="modal-body"></div>
+  </dialog>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+  <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.4/dist/jspdf.plugin.autotable.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
